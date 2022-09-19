@@ -2,19 +2,15 @@ package main
 
 import (
 	"github.com/fatih/color"
-	"sync"
 	"time"
 )
 
 type BarberShop struct {
-	ShopCapacity    int
 	CutDuration     time.Duration
+	ShopCapacity    int
 	NumberOfBarbers int
-	DoneChan        chan bool
+	BarberDoneChan  chan bool
 	ClientsChan     chan string
-	ClientsDoneChan chan bool
-	closed          bool
-	mutex           sync.RWMutex
 }
 
 func (b *BarberShop) AddBarber(barber string) {
@@ -55,41 +51,32 @@ func (b *BarberShop) cutHair(barber, client string) {
 
 func (b *BarberShop) sendBarberHome(barber string) {
 	color.Blue("\t%s is going home", barber)
-	b.DoneChan <- true
+	b.BarberDoneChan <- true
 }
 
 func (b *BarberShop) AddClient(client string) {
 	color.Magenta("*** %s arrives! ***", client)
 
-	b.mutex.RLock()
-	if b.closed {
-		color.Red("The shop is already closed, so %s leaves", client)
-	} else {
-		select {
-		case b.ClientsChan <- client:
-			color.Blue("%s takes a seat in waiting room", client)
-		default:
-			color.Red("The waiting room is full, so %s leaves", client)
-		}
+	select {
+	case b.ClientsChan <- client:
+		color.Blue("%s takes a seat in waiting room", client)
+	default:
+		color.Red("The waiting room is full, so %s leaves", client)
 	}
-	b.mutex.RUnlock()
 }
 
-func (b *BarberShop) Start() chan bool {
-	shopClosedChan := make(chan bool)
+func (b *BarberShop) Start() (soonClosed, closed chan bool) {
+	soonClosed = make(chan bool)
+	closed = make(chan bool)
 
 	go func() {
 		<-time.After(openDuration)
-
-		b.mutex.Lock()
-		b.closed = true
-		b.mutex.Unlock()
-
+		soonClosed <- true
 		b.Close()
-		shopClosedChan <- true
+		closed <- true
 	}()
 
-	return shopClosedChan
+	return soonClosed, closed
 }
 
 func (b *BarberShop) Close() {
@@ -97,10 +84,10 @@ func (b *BarberShop) Close() {
 	close(b.ClientsChan)
 
 	for a := 1; a <= b.NumberOfBarbers; a++ {
-		<-b.DoneChan
+		<-b.BarberDoneChan
 	}
 
-	close(b.DoneChan)
+	close(b.BarberDoneChan)
 	color.Green("--------------------------------------------------------")
 	color.Green("The barber shop is now closed and everyone has gone home")
 }

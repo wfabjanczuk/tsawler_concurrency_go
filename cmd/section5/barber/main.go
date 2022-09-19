@@ -28,7 +28,7 @@ func main() {
 		CutDuration:     cutDuration,
 		NumberOfBarbers: 0,
 		ClientsChan:     clientChan,
-		DoneChan:        doneChan,
+		BarberDoneChan:  doneChan,
 	}
 	color.Green("The shop is open")
 
@@ -36,20 +36,14 @@ func main() {
 	shop.AddBarber("George")
 	time.Sleep(1 * time.Second)
 
-	shopClosedChan := shop.Start()
-
-	clientsClosing := make(chan bool)
-	go func() {
-		<-time.After(2 * openDuration)
-		clientsClosing <- true
-	}()
+	shopSoonClosedChan, shopClosedChan := shop.Start()
 
 	i := 1
 	go func() {
 		for {
 			randomMilliseconds := rand.Int() % (2 * arrivalRate)
 			select {
-			case <-clientsClosing:
+			case <-shopSoonClosedChan:
 				color.Cyan("<><><><><><><><><><><><><><><><><")
 				color.Cyan("Pissed off clients stopped coming")
 				color.Cyan("<><><><><><><><><><><><><><><><><")
@@ -62,5 +56,4 @@ func main() {
 	}()
 
 	<-shopClosedChan
-	time.Sleep(2 * openDuration)
 }
