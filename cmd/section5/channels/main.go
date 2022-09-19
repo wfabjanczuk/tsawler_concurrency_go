@@ -31,15 +31,19 @@ func pingPong(ping chan<- string, pong <-chan string) {
 		}
 
 		ping <- userInput
-		response := <-pong
+		response, ok := <-pong
 
-		fmt.Println("\tResponse:", response)
+		if ok {
+			fmt.Println("\tResponse:", response)
+		}
 	}
 }
 
 func shout(ping <-chan string, pong chan<- string) {
 	for {
-		s := <-ping
-		pong <- fmt.Sprintf("%s!!!", strings.ToUpper(s))
+		s, ok := <-ping
+		if ok {
+			pong <- fmt.Sprintf("%s!!!", strings.ToUpper(s))
+		}
 	}
 }
