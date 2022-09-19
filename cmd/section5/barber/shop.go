@@ -9,7 +9,7 @@ type BarberShop struct {
 	ShopCapacity    int
 	CutDuration     time.Duration
 	NumberOfBarbers int
-	Open            bool
+	ShopClosingChan chan bool
 	DoneChan        chan bool
 	ClientsChan     chan string
 	ClientsDoneChan chan bool
@@ -23,7 +23,7 @@ func (b *BarberShop) AddBarber(barber string) {
 		color.Yellow("\t%s goes to the waiting room to check for clients", barber)
 
 		for {
-			if b.Open && !isSleeping && len(b.ClientsChan) == 0 {
+			if !isSleeping && len(b.ClientsChan) == 0 {
 				isSleeping = true
 				color.Yellow("\tThere is nothing to do, so %s takes a nap", barber)
 			}
@@ -56,25 +56,39 @@ func (b *BarberShop) sendBarberHome(barber string) {
 	b.DoneChan <- true
 }
 
-func (b *BarberShop) AddClient(client string) {
+func (b *BarberShop) AddClient(client string) bool {
 	color.Magenta("*** %s arrives! ***", client)
 
-	if b.Open {
-		select {
-		case b.ClientsChan <- client:
-			color.Blue("%s takes a seat in waiting room", client)
-		default:
-			color.Red("The waiting room is full, so %s leaves", client)
-		}
-	} else {
+	if len(b.ShopClosingChan) == 1 {
 		color.Red("The shop is already closed, so %s leaves", client)
+		return false
 	}
+
+	select {
+	case b.ClientsChan <- client:
+		color.Blue("%s takes a seat in waiting room", client)
+	default:
+		color.Red("The waiting room is full, so %s leaves", client)
+	}
+	return true
+}
+
+func (b *BarberShop) Start() chan bool {
+	shopClosedChan := make(chan bool)
+
+	go func() {
+		<-time.After(openDuration)
+		b.ShopClosingChan <- true
+		b.Close()
+		shopClosedChan <- true
+	}()
+
+	return shopClosedChan
 }
 
 func (b *BarberShop) Close() {
 	color.Blue("Closing shop for the day")
 	close(b.ClientsChan)
-	b.Open = false
 
 	for a := 1; a <= b.NumberOfBarbers; a++ {
 		<-b.DoneChan

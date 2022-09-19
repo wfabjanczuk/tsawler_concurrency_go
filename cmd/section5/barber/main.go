@@ -8,10 +8,10 @@ import (
 )
 
 var (
-	seatsCapacity = 5
+	seatsCapacity = 2
 	arrivalRate   = 300
 	cutDuration   = 1000 * time.Millisecond
-	openDuration  = 10 * time.Second
+	openDuration  = 5 * time.Second
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 		ShopCapacity:    seatsCapacity,
 		CutDuration:     cutDuration,
 		NumberOfBarbers: 0,
-		Open:            true,
+		ShopClosingChan: make(chan bool, 1),
 		ClientsChan:     clientChan,
 		DoneChan:        doneChan,
 	}
@@ -37,14 +37,12 @@ func main() {
 	shop.AddBarber("George")
 	time.Sleep(1 * time.Second)
 
-	shopClosing := make(chan bool)
-	closed := make(chan bool)
+	shopClosedChan := shop.Start()
 
+	clientsClosing := make(chan bool)
 	go func() {
-		<-time.After(openDuration)
-		shopClosing <- true
-		shop.Close()
-		closed <- true
+		<-time.After(2 * openDuration)
+		clientsClosing <- true
 	}()
 
 	i := 1
@@ -52,13 +50,10 @@ func main() {
 		for {
 			randomMilliseconds := rand.Int() % (2 * arrivalRate)
 			select {
-			case <-shopClosing:
-				// simulate clients coming to the closed shop
-				for j := 0; j < 10; j++ {
-					time.Sleep(time.Millisecond * time.Duration(randomMilliseconds))
-					shop.AddClient(fmt.Sprintf("Client #%d", i))
-					i++
-				}
+			case <-clientsClosing:
+				color.Cyan("<><><><><><><><><><><><><><><><><")
+				color.Cyan("Pissed off clients stopped coming")
+				color.Cyan("<><><><><><><><><><><><><><><><><")
 				return
 			case <-time.After(time.Millisecond * time.Duration(randomMilliseconds)):
 				shop.AddClient(fmt.Sprintf("Client #%d", i))
@@ -67,5 +62,6 @@ func main() {
 		}
 	}()
 
-	<-closed
+	<-shopClosedChan
+	time.Sleep(2 * openDuration)
 }
