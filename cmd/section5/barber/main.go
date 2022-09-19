@@ -9,7 +9,7 @@ import (
 
 var (
 	seatsCapacity = 2
-	arrivalRate   = 300
+	arrivalRate   = 0
 	cutDuration   = 1000 * time.Millisecond
 	openDuration  = 5 * time.Second
 )
@@ -41,7 +41,7 @@ func main() {
 	i := 1
 	go func() {
 		for {
-			randomMilliseconds := rand.Int() % (2 * arrivalRate)
+			randomMilliseconds := arrivalRate
 			select {
 			case <-shopSoonClosedChan:
 				color.Cyan("<><><><><><><><><><><><><><><><><")
