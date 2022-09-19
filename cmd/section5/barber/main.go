@@ -27,7 +27,6 @@ func main() {
 		ShopCapacity:    seatsCapacity,
 		CutDuration:     cutDuration,
 		NumberOfBarbers: 0,
-		ShopClosingChan: make(chan bool, 1),
 		ClientsChan:     clientChan,
 		DoneChan:        doneChan,
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/fatih/color"
+	"sync"
 	"time"
 )
 
@@ -9,10 +10,11 @@ type BarberShop struct {
 	ShopCapacity    int
 	CutDuration     time.Duration
 	NumberOfBarbers int
-	ShopClosingChan chan bool
 	DoneChan        chan bool
 	ClientsChan     chan string
 	ClientsDoneChan chan bool
+	closed          bool
+	mutex           sync.RWMutex
 }
 
 func (b *BarberShop) AddBarber(barber string) {
@@ -56,21 +58,21 @@ func (b *BarberShop) sendBarberHome(barber string) {
 	b.DoneChan <- true
 }
 
-func (b *BarberShop) AddClient(client string) bool {
+func (b *BarberShop) AddClient(client string) {
 	color.Magenta("*** %s arrives! ***", client)
 
-	if len(b.ShopClosingChan) == 1 {
+	b.mutex.RLock()
+	if b.closed {
 		color.Red("The shop is already closed, so %s leaves", client)
-		return false
+	} else {
+		select {
+		case b.ClientsChan <- client:
+			color.Blue("%s takes a seat in waiting room", client)
+		default:
+			color.Red("The waiting room is full, so %s leaves", client)
+		}
 	}
-
-	select {
-	case b.ClientsChan <- client:
-		color.Blue("%s takes a seat in waiting room", client)
-	default:
-		color.Red("The waiting room is full, so %s leaves", client)
-	}
-	return true
+	b.mutex.RUnlock()
 }
 
 func (b *BarberShop) Start() chan bool {
@@ -78,7 +80,11 @@ func (b *BarberShop) Start() chan bool {
 
 	go func() {
 		<-time.After(openDuration)
-		b.ShopClosingChan <- true
+
+		b.mutex.Lock()
+		b.closed = true
+		b.mutex.Unlock()
+
 		b.Close()
 		shopClosedChan <- true
 	}()
